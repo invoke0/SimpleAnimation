@@ -1,0 +1,3 @@
+[submodule "Packages/Unity.PlayableGraphVisualizer"]
+	path = Packages/Unity.PlayableGraphVisualizer
+	url = git@github.com:Unity-Technologies/graph-visualizer.git
