@@ -1,0 +1,200 @@
+// https://wiki.in.ys4fun.com/pages/viewpage.action?pageId=92051660
+// APP_VERSION : app版本
+// RES_VERSION : 资源版本,纯微端直接使用 1 即可
+// VERSION_NAME : 版本名称
+// SDK : 0代表不带sdk，1代表集成SDK(SDK集成需要走签名流程)
+// IL2CPP : 是否打 il2cpp 包
+// IL2CPP_DEBUG : il2cpp 是否开启 debug 模式,现在别开启, 没有裁减过导致打不出来
+// RES_BRANCH_URL : 纯微端的访问路径,没有sdk时候访问这个目录获取微端信息
+
+// BEGIN_STEP : 从哪一步开始打包
+// FETCH_URL : 打包的时候从哪里下载资源
+// DLC_TYPE : 下载分类,empty,all,android,ios
+// APP_UPLOAD_PATH : apk 上传目录
+
+// RES_UPLOAD_PATH : 资源的上传路径
+// VOICE_VERSION : 自定义语音版本
+// VOICE_UPLOAD_PATH : 语音上传的根路径
+// VOICE_DOWNLOAD_URL : 微端语音的下载路径，之后会组合上语音版本；
+//                      其中 VOICE_VERSION 会被替换为 传入的 VOICE_VERSION 参数
+//                      例如
+//                          路径设定为：http://10.10.0.138:8068/resource/client_mini/voice/develop
+//                          语音版本： 1
+//                          最终会从【http://10.10.0.138:8068/resource/client_mini/voice/develop/1】 目录进行下载
+
+// LABEL_NAME : 使用 jenkins 的节点
+// CUSTOM_WORKSPACE : 对应节点所使用的工作目录
+// LOG_DIRECOTRY : 日志输出目录
+// UNITY_EDITOR_PATH : 节点上的 unity.exe 路径
+// GRADLE_PATH : 节点上的 gradle 路径
+
+def curAppVersion = params.get('APP_VERSION').toInteger()
+def curResVersion = params.get('RES_VERSION').toInteger()
+def nextResVersion = params.get('RES_VERSION').toInteger()
+//def nextResVersion = params.get('RES_VERSION').toInteger()+1
+def version_name = params.get('VERSION_NAME')
+def sdk = params.get('SDK')
+def il2cpp = params.get('IL2CPP')
+def il2cpp_debug = params.get('IL2CPP_DEBUG')
+def client_mini_version_download_path = params.get('RES_BRANCH_URL')
+
+// def res_upload_path = params.get('RES_UPLOAD_PATH')
+// def voice_version = params.get('VOICE_VERSION')
+// def voice_upload_path = params.get('VOICE_UPLOAD_PATH')
+// def voice_download_url = params.get('VOICE_DOWNLOAD_URL') //"http://10.10.0.138:8068/resource/voice/release/resources;https://mimier-p08-test.oss-cn-shanghai.aliyuncs.com/voice"
+
+def beginStep = params.get('BEGIN_STEP').toInteger()
+def fetch_url = params.get('FETCH_URL')
+def dlc_type = params.get('DLC_TYPE')
+def app_upload_path = params.get('APP_UPLOAD_PATH')
+
+def label_name = params.get('LABEL_NAME')
+def custom_workspace = params.get('CUSTOM_WORKSPACE')
+def unity = params.get('UNITY_EDITOR_PATH')
+def gradle_path = params.get('GRADLE_PATH')
+def branch_name = params.get('BRANCH_NAME')
+
+pipeline{
+    agent{
+        label {
+            label params.LABEL_NAME
+            customWorkspace  params.CUSTOM_WORKSPACE
+        }
+    }
+    environment {
+        APK_SOURCE_NAME = "launcher-debug.apk"
+        TEMPLATE_PREFIX = "editor_debug_${branch_name}"
+        TEMPLATE_NAME = "${TEMPLATE_PREFIX}_${curAppVersion}_${curResVersion}_${dlc_type}_${env.BUILD_NUMBER}"
+        APK_RENAME_TARGET = "${TEMPLATE_NAME}.apk"
+        FOLDER_NAME = "${TEMPLATE_NAME}"
+        ZIP_NAME = "${TEMPLATE_NAME}.zip"
+    }
+    stages{
+        stage('1 - git'){
+            when{ expression {return beginStep <= 1}}
+            steps{
+                script{
+                    echo "update git"
+                    
+                    bat "git checkout ."
+                    bat "git submodule foreach --recursive git checkout ."
+                    bat "git clean -f"
+                    bat "git submodule foreach --recursive git clean -f"
+                    bat "git pull"
+                    bat "git checkout ${branch_name} -f"
+                    bat "git pull"
+                    bat "git submodule update --remote --recursive"
+                }
+                script {
+                    try {
+                        def result = bat(script: "git rev-parse --abbrev-ref HEAD", returnStdout: true)
+                        
+                        echo "git branch is: ${result.trim()}"
+                        branch_name = result.trim().readLines().drop(1).join(" ")  
+                        
+                        buildDescription "${branch_name} ${fetch_url}"
+                        def item = jenkins.model.Jenkins.instance.getItem(JOB_NAME)
+                        item.setDescription("${branch_name} 微端打包 ${fetch_url}")
+                        item.save()
+                    }
+                    catch (Exception e) {
+                        // 异常处理逻辑
+                        echo "try auto set branch desc failed. catch: ${e.message}"
+                    }
+                }
+            }
+        }
+        stage('2 - Unity编译'){
+            when{ expression {return beginStep <= 2}}
+            steps{
+                script{
+                    echo "git versions:"
+                    bat "git log -1 && git submodule foreach git log -1"
+                }
+                script{
+                    echo "unity build appVersion: ${curAppVersion} resVersion: ${curResVersion}"
+                    try{
+    					fileOperations([fileDeleteOperation(excludes: '', includes: '*.apk'), fileDeleteOperation(excludes: '', includes: '*.ipa'), fileDeleteOperation(excludes: '', includes: '*.zip'), folderDeleteOperation('Project'), folderDeleteOperation('client/IL2CPPSymbols')])
+    					bat "${unity} -quit -batchmode -projectPath ${env.WORKSPACE}\\client -nographics -buildTarget android -logFile ${env.WORKSPACE}/build_log/${env.BUILD_NUMBER}_unity_jenkins_client.log -executeMethod AutoBuild.BuildGameAndroidClientProjectWithArgs -app_version ${curAppVersion} -res_version ${curResVersion} -version_name ${version_name} -res_branch_url ${client_mini_version_download_path} -channel 1 -release 0 -il2cpp ${il2cpp} -il2cpp_debug ${il2cpp_debug} -sdk ${sdk} -skip_ab 1 -fix_resources 0"
+                    }
+                    catch (Exception e) {
+                        archiveArtifacts artifacts: "build_log/${env.BUILD_NUMBER}_unity_jenkins_client.log", followSymlinks: false
+                        error "unity编译报错"
+                        return
+                    }
+                }
+            }
+        }
+        stage('3 - 资源服下载资源'){
+            when{ expression {return beginStep <= 3}}
+            steps{
+                script{
+                    echo "download default resources from resource server && python FetchResources.py ${dlc_type} ${fetch_url} ${curAppVersion} ${curResVersion} ${version_name} \"${env.WORKSPACE}\"\\Project\\launcher\\src\\main\\assets\\Android"
+                    
+                }
+            }
+        }
+        stage('4 - Gradle生成apk'){
+            when{ expression {return beginStep <= 4}}
+            steps{
+                script{
+                    bat "cd /d ${env.WORKSPACE}\\Project\\launcher && ${gradle_path} clean && ${gradle_path} assembleDebug"
+                }
+            }
+        }
+        stage('拷贝成品'){
+            when{ expression {return beginStep <= 4}}
+            steps{
+                script{
+                    //fileOperations([folderCreateOperation(FOLDER_NAME), fileZipOperation(folderPath: 'client/IL2CPPSymbols', outputFolderPath: FOLDER_NAME), fileCopyOperation(excludes: '', flattenFiles: true, includes: 'Project/launcher/build/outputs/apk/*/*.apk', renameFiles: false, sourceCaptureExpression: '', targetLocation: FOLDER_NAME, targetNameExpression: ''), fileRenameOperation(destination: "${FOLDER_NAME}/${APK_RENAME_TARGET}", source: "${FOLDER_NAME}/${APK_SOURCE_NAME}"), fileZipOperation(folderPath: FOLDER_NAME, outputFolderPath: '')])
+                    fileOperations([folderCreateOperation(FOLDER_NAME), fileZipOperation(folderPath: 'Project/unityLibrary/symbols', outputFolderPath: FOLDER_NAME), fileCopyOperation(excludes: '', flattenFiles: true, includes: 'Project/launcher/build/outputs/apk/*/*.apk', renameFiles: false, sourceCaptureExpression: '', targetLocation: FOLDER_NAME, targetNameExpression: ''), fileRenameOperation(destination: "${FOLDER_NAME}/${APK_RENAME_TARGET}", source: "${FOLDER_NAME}/${APK_SOURCE_NAME}"), fileZipOperation(folderPath: FOLDER_NAME, outputFolderPath: '')])
+                    fileOperations([folderDeleteOperation(FOLDER_NAME)])
+                    fileOperations([fileCopyOperation(excludes: '', flattenFiles: true, includes: 'Project/launcher/build/outputs/apk/*/*.apk', renameFiles: false, sourceCaptureExpression: '', targetLocation: '', targetNameExpression: ''), fileRenameOperation(destination: "${APK_RENAME_TARGET}", source: "${APK_SOURCE_NAME}")])
+                }
+            }
+        }
+        // stage('5 - 上传微端到FTP'){
+        //     when{ expression {return beginStep <= 5}}
+        //     steps {
+        //         ftpPublisher    alwaysPublishFromMaster: false,
+        //                         continueOnError: false,
+        //                         failOnError: false,
+        //                         masterNodeName: '',
+        //                         paramPublish: null,
+        //                         publishers: [[
+        //                             configName: 'p08的内网资源ftp',
+        //                             transfers: [[
+        //                                 asciiMode: false,
+        //                                 cleanRemote: false,
+        //                                 excludes: '',
+        //                                 flatten: false,
+        //                                 makeEmptyDirs: false,
+        //                                 noDefaultExcludes: false,
+        //                                 patternSeparator: '[, ]+',
+        //                                 remoteDirectory: "${app_upload_path}/${curAppVersion}/",
+        //                                 remoteDirectorySDF: false,
+        //                                 removePrefix: "",
+        //                                 sourceFiles: ZIP_NAME
+        //                             ]],
+        //                             usePromotionTimestamp: false,
+        //                             useWorkspaceInPromotion: false,
+        //                             verbose: false
+        //                         ]]
+        //     }
+        // }
+        stage('归档成品'){
+            when{ expression {return beginStep <= 5}}
+            steps{
+                script{
+                    archiveArtifacts artifacts: "${APK_RENAME_TARGET}", followSymlinks: false
+                    // archiveArtifacts artifacts: ZIP_NAME, followSymlinks: false
+                }
+            }
+        }
+    }
+    parameters{
+        string(defaultValue: "${curAppVersion}", description: '客户端版本号', name: 'APP_VERSION')
+        string(defaultValue: "${nextResVersion}", description: '资源版本号', name: 'RES_VERSION')
+        string(defaultValue: "${version_name}", description: '版本名称', name: 'VERSION_NAME')
+    }
+}
