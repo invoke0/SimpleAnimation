@@ -7,7 +7,7 @@
 // VERSION_NAME : 版本名称
 // SDK : 0代表不带sdk，1代表集成SDK(SDK集成需要走签名流程)
 // IL2CPP : 是否打 il2cpp 包
-// IL2CPP_DEBUG : il2cpp 是否开启 debug 模式,现在别开启, 没有裁减过导致打不出来
+// IL2CPP_DEBUG : il2cpp 是否开启 d111ebug 模式,现在别开启, 没有裁减过导致打不出来
 // RES_BRANCH_URL : 纯微端的访问路径,没有sdk时候访问这个目录获取微端信息
 
 // BEGIN_STEP : 从哪一步开始打包
