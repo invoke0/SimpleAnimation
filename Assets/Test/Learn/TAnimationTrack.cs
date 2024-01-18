@@ -20,11 +20,15 @@ public class TAnimationTrack : TrackAsset
 {
     public override IEnumerable<PlayableBinding> outputs
     {
-        get { yield return AnimationPlayableBinding.Create(name, this); }
+        get {
+            yield return AnimationPlayableBinding.Create(name, this); 
+        }
     }
 
     public override Playable CreateTrackMixer(PlayableGraph graph, GameObject go, int inputCount)
     {
+        Debug.Log("CreateTrackMixer" + graph.GetHashCode());
+
         var mixer  = AnimationMixerPlayable.Create(graph, inputCount);
         return mixer;
     }

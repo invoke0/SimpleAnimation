@@ -23,6 +23,8 @@ public class TAnimationPlayableAsset : PlayableAsset
 
     public override Playable CreatePlayable(PlayableGraph graph, GameObject go)
     {
+        Debug.Log("CreatePlayable" + graph.GetHashCode());
+
         Playable root = CreatePlayable(graph, m_Clip, applyFootIK);
         return root;
     }

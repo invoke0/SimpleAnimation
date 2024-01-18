@@ -10,7 +10,7 @@ using UnityEngine.Timeline;
 [TrackBindingType(typeof(Animator))]
 public class ManualAnimatorTrack : TrackAsset
 {
-    public static T GetOrCreate<T>(GameObject go) where T : MonoBehaviour
+    static T GetOrCreate<T>(GameObject go) where T : MonoBehaviour
     {
         T com = go.GetComponent<T>();
         if (com != null)
@@ -30,7 +30,7 @@ public class ManualAnimatorTrack : TrackAsset
     {
         if (Application.isPlaying)
         {
-            var animator = GetBinding(go != null ? go.GetComponent<PlayableDirector>() : null);
+            Animator animator = GetBinding(go != null ? go.GetComponent<PlayableDirector>() : null);
             if (null == animator)
             {
                 return AnimationMixerPlayable.Create(graph, inputCount);

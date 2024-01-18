@@ -83,6 +83,11 @@ pipeline{
                     bat "git pull"
                     bat "git checkout ${branch_name} -f"
                     bat "git pull"
+                    //bat "git submodule set-branch --branch ${branch_name} \"client/Assets/Plugins\""
+                    //bat "git submodule set-branch --branch ${branch_name} \"client/Assets/Launcher\""
+                    //bat "git submodule set-branch --branch ${branch_name} \"client/Packages\""
+                    //bat "git submodule set-branch --branch ${branch_name} \"client/ProjectSettings\""
+                    //bat "git submodule set-branch --branch ${branch_name} \"tool\""
                     bat "git submodule update --remote --recursive"
                 }
                 script {
@@ -129,8 +134,8 @@ pipeline{
             when{ expression {return beginStep <= 3}}
             steps{
                 script{
-                    echo "download default resources from resource server && python FetchResources.py ${dlc_type} ${fetch_url} ${curAppVersion} ${curResVersion} ${version_name} \"${env.WORKSPACE}\"\\Project\\launcher\\src\\main\\assets\\Android"
-                    
+                    echo "download default resources from resource server"
+                    bat "cd /d \"${env.WORKSPACE}\"\\tool\\deploytools && python FetchResources.py ${dlc_type} ${fetch_url} ${curAppVersion} ${curResVersion} ${version_name} \"${env.WORKSPACE}\"\\Project\\launcher\\src\\main\\assets\\Android"
                 }
             }
         }
@@ -153,41 +158,41 @@ pipeline{
                 }
             }
         }
-        // stage('5 - 上传微端到FTP'){
-        //     when{ expression {return beginStep <= 5}}
-        //     steps {
-        //         ftpPublisher    alwaysPublishFromMaster: false,
-        //                         continueOnError: false,
-        //                         failOnError: false,
-        //                         masterNodeName: '',
-        //                         paramPublish: null,
-        //                         publishers: [[
-        //                             configName: 'p08的内网资源ftp',
-        //                             transfers: [[
-        //                                 asciiMode: false,
-        //                                 cleanRemote: false,
-        //                                 excludes: '',
-        //                                 flatten: false,
-        //                                 makeEmptyDirs: false,
-        //                                 noDefaultExcludes: false,
-        //                                 patternSeparator: '[, ]+',
-        //                                 remoteDirectory: "${app_upload_path}/${curAppVersion}/",
-        //                                 remoteDirectorySDF: false,
-        //                                 removePrefix: "",
-        //                                 sourceFiles: ZIP_NAME
-        //                             ]],
-        //                             usePromotionTimestamp: false,
-        //                             useWorkspaceInPromotion: false,
-        //                             verbose: false
-        //                         ]]
-        //     }
-        // }
+        stage('5 - 上传微端到FTP'){
+            when{ expression {return beginStep <= 5}}
+            steps {
+                ftpPublisher    alwaysPublishFromMaster: false,
+                                continueOnError: false,
+                                failOnError: false,
+                                masterNodeName: '',
+                                paramPublish: null,
+                                publishers: [[
+                                    configName: 'p08的内网资源ftp',
+                                    transfers: [[
+                                        asciiMode: false,
+                                        cleanRemote: false,
+                                        excludes: '',
+                                        flatten: false,
+                                        makeEmptyDirs: false,
+                                        noDefaultExcludes: false,
+                                        patternSeparator: '[, ]+',
+                                        remoteDirectory: "${app_upload_path}/${curAppVersion}/",
+                                        remoteDirectorySDF: false,
+                                        removePrefix: "",
+                                        sourceFiles: ZIP_NAME
+                                    ]],
+                                    usePromotionTimestamp: false,
+                                    useWorkspaceInPromotion: false,
+                                    verbose: false
+                                ]]
+            }
+        }
         stage('归档成品'){
             when{ expression {return beginStep <= 5}}
             steps{
                 script{
                     archiveArtifacts artifacts: "${APK_RENAME_TARGET}", followSymlinks: false
-                    // archiveArtifacts artifacts: ZIP_NAME, followSymlinks: false
+                    archiveArtifacts artifacts: ZIP_NAME, followSymlinks: false
                 }
             }
         }
